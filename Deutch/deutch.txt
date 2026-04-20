@@ -1,0 +1,53 @@
+!pip install qiskit qiskit-aer pylatexenc
+
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+def deutsch_function(case: int):
+    if case not in [1, 2, 3, 4]:
+        raise ValueError("`case` must be 1, 2, 3, or 4.")
+
+    f = QuantumCircuit(2)
+    if case in [2, 3]:
+        f.cx(0, 1)
+    if case in [3, 4]:
+        f.x(1)
+    f.name = f"Oracle {case}"
+    return f
+
+def compile_circuit(function: QuantumCircuit):
+    n = function.num_qubits - 1
+    qc = QuantumCircuit(n + 1, n)
+
+    qc.x(n)
+    qc.h(range(n + 1))
+    qc.barrier()
+    qc.compose(function, inplace=True)
+    qc.barrier()
+    qc.h(range(n))
+    qc.measure(range(n), range(n))
+
+    return qc
+
+case_number = 3
+oracle = deutsch_function(case_number)
+qc = compile_circuit(oracle)
+
+print(f"Drawing circuit diagram for Case {case_number}...")
+display(qc.draw("mpl"))
+
+print("Running on local simulator...")
+
+simulator = AerSimulator()
+result = simulator.run(qc, shots=1, memory=True).result()
+
+measurements = result.get_memory()
+output_bit = measurements[0]
+
+print("\n--- Algorithm Results ---")
+print(f"Measurement Output: {output_bit}")
+
+if output_bit == "0":
+    print(f"Conclusion: Function {case_number} is CONSTANT.")
+else:
+    print(f"Conclusion: Function {case_number} is BALANCED.")
