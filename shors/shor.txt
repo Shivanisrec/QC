@@ -1,0 +1,103 @@
+!pip install qiskit qiskit-aer pylatexenc
+
+import numpy as np
+from math import log, floor
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
+from qiskit.circuit.library import QFT
+from qiskit_aer import AerSimulator
+from qiskit import transpile
+
+
+def M2mod15():
+    qc = QuantumCircuit(4)
+    qc.swap(2, 3)
+    qc.swap(1, 2)
+    qc.swap(0, 1)
+    return qc.to_gate(label="M2")
+
+def M4mod15():
+    qc = QuantumCircuit(4)
+    qc.swap(1, 3)
+    qc.swap(0, 2)
+    return qc.to_gate(label="M4")
+
+
+def a2kmodN(a, k, N):
+    return pow(a, 2**k, N)
+
+
+N = 30
+a = 4
+
+num_target = 4  
+num_control = 8 
+
+k_list = range(num_control)
+b_list = [a2kmodN(2, k, 15) for k in k_list]
+
+
+control = QuantumRegister(num_control, name="C")
+target = QuantumRegister(num_target, name="T")
+output = ClassicalRegister(num_control, name="out")
+
+qc = QuantumCircuit(control, target, output)
+
+
+qc.x(num_control)
+
+for k in range(num_control):
+    qc.h(k)
+for k, qubit in enumerate(control):
+    b = b_list[k]
+    if b == 2:
+        qc.compose(M2mod15().control(), qubits=[qubit] + list(target), inplace=True)
+    elif b == 4:
+        qc.compose(M4mod15().control(), qubits=[qubit] + list(target), inplace=True)
+
+qc.compose(QFT(num_control, inverse=True), qubits=control, inplace=True)
+
+qc.measure(control, output)
+
+
+sim = AerSimulator()
+compiled = transpile(qc, sim)
+
+result = sim.run(compiled, shots=1024).result()
+counts = result.get_counts()
+
+print(counts)
+
+fig = plot_histogram(counts)
+display(fig)
+plt.show()
+
+measured = max(counts, key=counts.get)
+print("Measured:", measured) 
+
+decimal = int(measured, 2)
+print("Decimal:", decimal) 
+
+phase = decimal / (2 ** num_control)
+print("Phase:", phase) 
+
+from fractions import Fraction
+
+frac = Fraction(phase).limit_denominator(15)  
+r = frac.denominator
+
+print("Estimated period r:", r)  
+
+if r % 2 != 0:
+    print("r is odd, try again")
+
+from math import gcd
+
+a = 2  
+N = 15
+
+x = pow(a, r // 2, N)
+
+factor1 = gcd(x - 1, N)
+factor2 = gcd(x + 1, N)
+
+print("Factors:", factor1, factor2)
