@@ -1,0 +1,77 @@
+!pip install qiskit
+!pip install pylatexenc
+!pip install qiskit-aer
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister, transpile
+from qiskit.visualization import plot_histogram, plot_bloch_multivector
+from qiskit_aer import AerSimulator
+
+n = 3
+
+oracleType, oracleValue = np.random.randint(2), np.random.randint(2)
+
+if oracleType == 0:
+    print("The oracle returns a constant value ", oracleValue)
+else:
+    print("The oracle returns a balanced function")
+    a = np.random.randint(1, 2**n)  # hidden parameter for balanced oracle
+
+qr = QuantumRegister(n + 1)
+cr = ClassicalRegister(n)
+
+djCircuit = QuantumCircuit(qr, cr)
+
+for i in range(n):
+    djCircuit.h(qr[i])
+
+djCircuit.x(qr[n])
+djCircuit.h(qr[n])
+
+djCircuit.barrier()
+
+if oracleType == 0:
+    if oracleValue == 1:
+        djCircuit.x(qr[n])
+    else:
+        djCircuit.id(qr[n])
+else:
+    for i in range(n):
+        if (a & (1 << i)):
+            djCircuit.cx(qr[i], qr[n])
+
+djCircuit.barrier()
+
+for i in range(n):
+    djCircuit.h(qr[i])
+
+djCircuit.barrier()
+for i in range(n):
+    djCircuit.measure(qr[i], cr[i])
+
+display(djCircuit.draw(output='mpl', scale=0.5))
+
+sim = AerSimulator()
+
+qc_init = djCircuit.copy()
+qc_init.save_statevector()
+
+result = sim.run(qc_init).result()
+statevector = result.get_statevector()
+
+print("Statevector:")
+print(statevector)
+
+display(plot_bloch_multivector(statevector))
+
+result = sim.run(djCircuit, shots=1).result()
+counts = result.get_counts()
+
+output = list(counts.keys())[0]
+
+if output == "0"*n:
+    print("Function is CONSTANT")
+else:
+    print("Function is BALANCED")
