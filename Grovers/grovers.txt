@@ -1,0 +1,72 @@
+!pip install qiskit qiskit-aer pylatexenc
+
+import math
+import matplotlib.pyplot as plt
+from qiskit import QuantumCircuit, transpile
+from qiskit.circuit.library import grover_operator
+from qiskit_aer import AerSimulator
+from qiskit.visualization import plot_histogram
+
+
+def create_oracle(marked_states):
+    if not isinstance(marked_states, list):
+        marked_states = [marked_states]
+
+    n = len(marked_states[0])
+    qc = QuantumCircuit(n)
+
+    for state in marked_states:
+        rev = state[::-1]
+
+        for i in range(n):
+            if rev[i] == '0':
+                qc.x(i)
+
+        qc.h(n-1)
+        qc.mcx(list(range(n-1)), n-1)
+        qc.h(n-1)
+
+        for i in range(n):
+            if rev[i] == '0':
+                qc.x(i)
+
+    return qc
+
+
+marked_states = ["011", "100"]
+
+oracle = create_oracle(marked_states)
+grover_op = grover_operator(oracle)
+
+n = grover_op.num_qubits
+
+iterations = math.floor(
+    math.pi / (4 * math.asin(math.sqrt(len(marked_states) / (2**n))))
+)
+
+print("Optimal Iterations:", iterations)
+
+qc = QuantumCircuit(n, n)
+
+qc.h(range(n))
+
+qc.compose(grover_op.power(iterations), inplace=True)
+
+qc.measure(range(n), range(n))
+
+
+print("\nCircuit Diagram:")
+display(qc.draw('mpl'))
+
+
+sim = AerSimulator()
+qc_compiled = transpile(qc, sim)
+
+result = sim.run(qc_compiled, shots=1000).result()
+counts = result.get_counts()
+
+print("\nCounts:")
+print(counts)
+
+print("\nHistogram:")
+plot_histogram(counts)
